@@ -18,6 +18,12 @@ jobs:
           echo "${{ secrets.DIGITALOCEAN_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.DIGITALOCEAN_IP }} >> ~/.ssh/known_hosts
+          
+      - name: Debug SSH Connection
+        run: |
+          echo "DO_IP: ${{ secrets.DIGITALOCEAN_IP }}"
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@${{ secrets.DIGITALOCEAN_IP }} "echo 'SSH Connection Successful'"
+
 
       - name: Deploy to DigitalOcean Server
         run: |
