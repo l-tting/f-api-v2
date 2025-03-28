@@ -149,5 +149,5 @@ class Subscription(Base):
     tier = relationship("Tier",back_populates='subscription')
 #status for subscription
     
-class Test(Base):
-    pass
+# class Test(Base):
+#     pass
