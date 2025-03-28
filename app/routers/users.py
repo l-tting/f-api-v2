@@ -6,7 +6,7 @@ from app.database import get_db
 from app.auth import create_access_token
 from datetime import timedelta
 from app.utils import generate_otp
-from routers.email import fm
+from app.routers.email import fm
 
 router = APIRouter()
 
