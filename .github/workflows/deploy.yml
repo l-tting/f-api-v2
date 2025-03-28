@@ -3,21 +3,17 @@ name: Deploy FastAPI to DigitalOcean
 on:
   push:
     branches:
-      - main  # Triggers on push to main branch
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
-    # Define environment for secrets
     environment: production
     
     steps:
-      # Checkout the repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Set up SSH
       - name: Setup SSH Key
         run: |
           mkdir -p ~/.ssh
@@ -26,27 +22,43 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || echo "SSH keyscan failed, proceeding anyway"
         shell: bash
 
-      # Deploy to DigitalOcean
       - name: Deploy to DigitalOcean Server
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << 'EOF'
-            set -e  # Exit on any error
-            cd /root/oneshop-api || exit 1  # Fail if directory doesn't exist
+            set -e
+            cd /root/oneshop-api || exit 1
+            
+            # Install Docker if missing
+            if ! command -v docker >/dev/null 2>&1; then
+              apt-get update
+              apt-get install -y docker.io
+              systemctl enable docker
+              systemctl start docker
+            fi
+            
+            # Install Docker Compose if missing
+            if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+              apt-get install -y docker-compose-plugin || \
+              (curl -SL https://github.com/docker/compose/releases/download/v2.24.7/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose && \
+               chmod +x /usr/local/bin/docker-compose)
+            fi
+            
             git fetch --all
-            git reset --hard origin/main  # Ensure clean state
+            git reset --hard origin/main
             
-            # Optional: Install requirements.txt (uncomment if needed outside Docker)
-            # apt-get update
-            # apt-get install -y python3-pip
-            # pip3 install -r requirements.txt
+            # Use whichever compose command is available
+            if docker compose version >/dev/null 2>&1; then
+              docker compose down || true
+              docker compose up -d --build --remove-orphans
+            else
+              docker-compose down || true
+              docker-compose up -d --build --remove-orphans
+            fi
             
-            docker-compose down || true  # Continue even if this fails
-            docker-compose up -d --build --remove-orphans  # Build and run
-            docker system prune -f  # Clean up unused images
+            docker system prune -f
           EOF
 
-      # Cleanup SSH key
       - name: Cleanup
-        if: always()  # Run even if previous steps fail
+        if: always()
         run: |
           rm -f ~/.ssh/id_ed25519
