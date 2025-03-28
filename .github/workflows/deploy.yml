@@ -3,40 +3,45 @@ name: Deploy FastAPI to DigitalOcean
 on:
   push:
     branches:
-      - main
+      - main  
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
+    # Add environment variables if needed
+    environment: production
+    
     steps:
+      # Checkout the repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up SSH Key
+      # Set up SSH
+      - name: Setup SSH Key
         run: |
           mkdir -p ~/.ssh
-          echo -e "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519  # Preserve formatting
-          chmod 600 ~/.ssh/id_ed25519  # Set correct permissions
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.DIGITALOCEAN_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DIGITALOCEAN_IP }} >> ~/.ssh/known_hosts
+        # Ensure SSH key is cleaned up after use
+        shell: bash
 
-      - name: Debug SSH Connection
-        run: ssh -v -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} "echo 'SSH Connection Successful'"
-
-      - name: Install Docker Compose (if missing)
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << 'EOF'
-            if ! command -v docker-compose &> /dev/null; then
-              curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              chmod +x /usr/local/bin/docker-compose
-            fi
-          EOF
-
+      # Deploy to DigitalOcean
       - name: Deploy to DigitalOcean Server
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << 'EOF'
-            cd /root/oneshop-api  # Change to correct project directory
-            git pull origin main  # Pull latest changes
-            docker-compose down  # Stop running containers
-            docker-compose up -d --build  # Restart FastAPI
+          ssh -i ~/.ssh/id_ed25519 root@${{ secrets.DIGITALOCEAN_IP }} << 'EOF'
+            set -e  # Exit on any error
+            cd /root/oneshop-api || exit 1  # Fail if directory doesn't exist
+            git fetch --all
+            git reset --hard origin/master  # Ensure clean state
+            docker-compose down || true  # Continue even if this fails
+            docker-compose up -d --build --remove-orphans  # Build and run
+            docker system prune -f  # Clean up unused images
           EOF
+
+      # Optional: Add cleanup step
+      - name: Cleanup
+        if: always()  # Run even if previous steps fail
+        run: |
+          rm -f ~/.ssh/id_ed25519
