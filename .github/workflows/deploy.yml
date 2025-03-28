@@ -3,13 +3,13 @@ name: Deploy FastAPI to DigitalOcean
 on:
   push:
     branches:
-      - main  
+      - main  # Triggers on push to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
-    # Add environment variables if needed
+    # Define environment for secrets
     environment: production
     
     steps:
@@ -23,24 +23,29 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
-        # Ensure SSH key is cleaned up after use
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || echo "SSH keyscan failed, proceeding anyway"
         shell: bash
 
       # Deploy to DigitalOcean
       - name: Deploy to DigitalOcean Server
         run: |
-          ssh -i ~/.ssh/id_ed25519 root@${{ secrets.SERVER_IP }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@${{ secrets.SERVER_IP }} << 'EOF'
             set -e  # Exit on any error
             cd /root/oneshop-api || exit 1  # Fail if directory doesn't exist
             git fetch --all
             git reset --hard origin/main  # Ensure clean state
+            
+            # Optional: Install requirements.txt (uncomment if needed outside Docker)
+            # apt-get update
+            # apt-get install -y python3-pip
+            # pip3 install -r requirements.txt
+            
             docker-compose down || true  # Continue even if this fails
             docker-compose up -d --build --remove-orphans  # Build and run
             docker system prune -f  # Clean up unused images
           EOF
 
-      # Optional: Add cleanup step
+      # Cleanup SSH key
       - name: Cleanup
         if: always()  # Run even if previous steps fail
         run: |
