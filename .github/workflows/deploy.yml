@@ -34,7 +34,7 @@ jobs:
             set -e  # Exit on any error
             cd /root/oneshop-api || exit 1  # Fail if directory doesn't exist
             git fetch --all
-            git reset --hard origin/master  # Ensure clean state
+            git reset --hard origin/main  # Ensure clean state
             docker-compose down || true  # Continue even if this fails
             docker-compose up -d --build --remove-orphans  # Build and run
             docker system prune -f  # Clean up unused images
